@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Semantic UI Layout</title>
+  <link rel="stylesheet" href="./semantic-ui/semantic.min.css">
+  <script src="./semantic-ui/jquery-3.2.1.min.js"></script>
+  <script src="./semantic-ui/semantic.min.js"></script>
+  </head>
+  <body>
+    <div>
+      <button id="openDirectoryButton">
+        pick a directory
+      </button>
+    </div>
+      <div id="links"></div>
+	<script>
+
+document.getElementById('openDirectoryButton')
+        .addEventListener('click', selectDirectory);
+		
+    async function selectDirectory() {
+        try {
+            let directoryHandle;
+
+                directoryHandle = await window.showDirectoryPicker();
+
+            // Memuat struktur direktori ke dalam DOM
+            const rootNode = document.createElement('ul');
+            await returnPathDirectories(directoryHandle);
+            const directoryTree = document.getElementById('directoryTree');
+            directoryTree.innerHTML = returnPathDirectories; // Menghapus isi dari directoryTree
+        } catch (err) {
+            console.error('Error selecting directory:', err);
+            alert('Error selecting directory: ' + err.message);
+        }
+    }
+
+async function returnPathDirectories(directoryHandle) {
+  // Get a file handle by showing a file picker:
+  const handle = await self.showOpenFilePicker();
+  if (!handle) {
+    // User cancelled, or otherwise failed to open a file.
+    return;
+  }
+
+  // Check if handle exists inside our directory handle
+  const relativePaths = await directoryHandle.resolve(handle);
+
+  if (relativePath === null) {
+    // Not inside directory handle
+  } else {
+    // relativePath is an array of names, giving the relative path
+
+    for (const name of relativePaths) {
+      // log each entry
+      console.log(name);
+    }
+  }
+}
+
+
+
+</script>
+  </body>
+</html>

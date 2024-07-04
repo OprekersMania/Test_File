@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="./semantic-ui/jquery-3.2.1.min.js"></script>
+  <link rel="stylesheet" href="./semantic-ui/semantic.min.css">
+  <script src="./semantic-ui/semantic.min.js"></script>
+    <title>Font Preview</title>
+    <style>
+    html, body {
+      margin: 0 10px;
+	  scroll-behavior: smooth;
+            background-color: #000;
+            font-family: Verdana, sans-serif;
+			color:cyan;
+	}
+        #sidebar {
+            width: 200px;
+            float: left;
+			display: contents;
+            border-right: 1px solid #ddd;
+            padding: 10px;
+        }
+
+        #content {
+            margin-left: 210px;
+            padding: 10px;
+        }
+
+        #preview {
+            flex-grow: 1;
+            padding: 10px;
+        }
+		
+        ul {
+            list-style-type: none;
+            padding-left: 5px;
+        }
+
+        li {
+            cursor: pointer;
+            padding-left: 5px;
+        }
+        canvas {
+			align:left;
+			max-width:97%;
+            border: 1px solid #fff;
+            margin-top: 20px;
+        }
+		.hidden {
+    display: none;
+}
+    </style>
+</head>
+<body>
+		<div class="eight wide column" id="sumber">
+		  <div class="ui black inverted segment">
+			<div class="ui form">
+	<div class="two fields">
+		<div class="field" style="width:max-content">
+			
+    <div id="sidebar">
+				<div><button id="openDirectoryButton">Open Directory</button></div>
+				<div id="directoryTree"></div>
+		</div>
+		</div>
+		
+		<div class="field" style="width:100%; ">
+			<h1>Adafruit GFX Font Preview</h1>
+			<textarea id="fileContent"></textarea>
+			<br>
+			<br>
+			Zoom Scale 
+			<input class="puter" type="number" min="1" id="FontZoom" value="4" style="width: 70px;"></input>
+			<button class="ui inverted violet button" id="FontPreview"><i class="icon upload"></i> Preview Font</button>
+			
+			<input class="puter" type="number" id="baseValue" value="0" style="width:70px;"></input>
+			<button class="ui small inverted blue button"  onclick="zeroBase()">Rubah Base</button>
+			
+			<br>
+			<canvas id="fontCanvas" ></canvas>
+		</div>
+    </div>
+
+				</div>
+			</div>
+		</div>
+
+    <script>
+
+document.getElementById('openDirectoryButton')
+        .addEventListener('click', selectDirectory);
+// Mengambil semua elemen input dengan class "puter"
+const puterInputs = document.querySelectorAll('.puter');
+
+// Loop melalui setiap elemen input dan tambahkan event listener
+puterInputs.forEach(input => {
+    input.addEventListener('wheel', function(e) {
+        // Mengambil nilai saat ini dari input
+        let currentValue = parseFloat(input.value) || 0;
+        
+        // Menyesuaikan nilai input berdasarkan arah scroll
+        if (e.deltaY > 0) {
+            // Scroll down
+            currentValue -= 1;
+        } else {
+            // Scroll up
+            currentValue += 1;
+        }
+        
+        // Memastikan nilai tidak melebihi min atau max jika ada
+        const min = parseFloat(input.min);
+        const max = parseFloat(input.max);
+        
+        if (!isNaN(min)) {
+            currentValue = Math.max(currentValue, min);
+        }
+        
+        if (!isNaN(max)) {
+            currentValue = Math.min(currentValue, max);
+        }
+        
+        // Menetapkan nilai baru ke input
+        input.value = currentValue;
+    });
+});
+
+    async function selectDirectory() {
+        try {
+            let directoryHandle;
+
+            // Mencoba mendapatkan path terakhir dari localStorage
+            const lastSelectedDirectory = localStorage.getItem('lastSelectedDirectory');
+            
+            console.error('Data Dir:', lastSelectedDirectory);
+            // Cek apakah ada path terakhir yang disimpan di localStorage
+            if (lastSelectedDirectory) {
+                // Mencoba membuka directoryHandle berdasarkan path terakhir
+                directoryHandle = await getDirectoryHandle(lastSelectedDirectory);
+            } else {
+                // Jika tidak ada path terakhir di localStorage, tampilkan dialog untuk memilih direktori
+                directoryHandle = await window.showDirectoryPicker();
+            }
+
+            // Memuat struktur direktori ke dalam DOM
+            const rootNode = document.createElement('ul');
+            await traverseDirectory(directoryHandle, rootNode);
+            document.getElementById('directoryTree').appendChild(rootNode);
+        } catch (err) {
+            console.error('Error selecting directory:', err);
+            alert('Error selecting directory: ' + err.message);
+        }
+    }
+
+    // Fungsi untuk menyimpan path terakhir yang dipilih ke dalam localStorage
+    function saveLastSelectedDirectory(directoryPath) {
+        localStorage.setItem('lastSelectedDirectory', directoryPath);
+    }
+
+    // Fungsi untuk mendapatkan directoryHandle berdasarkan directoryPath
+    async function getDirectoryHandle(directoryPath) {
+        // Mencoba mendapatkan directoryHandle berdasarkan directoryPath
+        const directoryHandle = await navigator.storage.getDirectory(directoryPath);
+
+        // Menyimpan path terakhir yang dipilih ke dalam localStorage
+        saveLastSelectedDirectory(directoryPath);
+            console.error('save dir:', saveLastSelectedDirectory);
+
+        return directoryHandle;
+    }
+
+	async function traverseDirectory(directoryHandle, parentNode) {
+		for await (const [name, handle] of directoryHandle.entries()) {
+			const listItem = document.createElement('li');
+			const itemText = document.createElement('span');
+			itemText.textContent = name;
+			listItem.appendChild(itemText);
+
+			if (handle.kind === 'directory') {
+				listItem.className = 'folder';
+				listItem.style.backgroundColor = 'darkgreen';
+				const subList = document.createElement('ul');
+				subList.classList.add('hidden'); // Sembunyikan daftar file secara default
+				listItem.appendChild(subList);
+
+				itemText.addEventListener('click', async () => {
+					if (subList.childElementCount === 0) {
+						await traverseDirectory(handle, subList);
+					}
+					subList.classList.toggle('hidden');
+				});
+			} else if (handle.kind === 'file' && name.endsWith('.h')) { // Ubah baris ini untuk memfilter file-font
+				listItem.className = 'file';
+				listItem.style.backgroundColor = 'orange';
+				listItem.addEventListener('click', () => {
+					loadFile(handle);
+				});
+			}
+
+			parentNode.appendChild(listItem);
+		}
+	}
+
+    // Fungsi untuk memuat konten file ke dalam textarea
+    async function loadFile(fileHandle) {
+        const file = await fileHandle.getFile();
+        const content = await file.text();
+        document.getElementById('fileContent').value = content;
+            executeFontPreview(content); // Automatically preview the font
+    }
+
+
+
+
+
+
+
+
+
+
+        function zeroBase() {
+			const inputValue = parseInt(document.getElementById('baseValue').value, 10);
+			let glyphArray = document.getElementById('fileContent').value;
+			const regex = /(\{\s*\d+,\s*\d+,\s*\d+,\s*\d+,\s*\d+,\s*)(-?\d+)(\s*\})/g;
+
+			let result = '';
+			let lastIndex = 0;
+
+			glyphArray.replace(regex, (match, p1, p2, p3, offset) => {
+				result += glyphArray.slice(lastIndex, offset);
+				let originalValue = parseInt(p2, 10);
+				let newValue = originalValue + inputValue;
+				result += `${p1}${newValue}${p3}`;
+				lastIndex = offset + match.length;
+			});
+
+			result += glyphArray.slice(lastIndex);
+
+			document.getElementById('fileContent').value = result;
+			executeFontPreview(result);
+			document.getElementById('baseValue').value = 0;
+		}
+	
+document.getElementById('FontPreview').addEventListener('click', function() {
+    const fontData = document.getElementById('fileContent').value;
+    executeFontPreview(fontData);
+});
+
+function executeFontPreview(content) {
+	// Add your preview function here
+	previewFont(content);
+	console.log("Previewing font content:", content);
+	// Call the actual font preview function with the content
+}
+		
+function previewFont(fontData) {
+    const canvas = document.getElementById('fontCanvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const { bitmaps, glyphs, FontHeight } = parseFontHeader(fontData);
+    
+    // console.log('Parsed Font Data:', { bitmaps, glyphs, FontHeight });
+    
+    if (!bitmaps.length || !glyphs.length || isNaN(FontHeight)) {
+        console.error('Invalid font data parsed:', { bitmaps, glyphs, FontHeight });
+        return;
+    }
+
+    let x = 5;
+    const lineHeight = 30;
+    let scaleFactor = parseFloat(document.getElementById('FontZoom').value);
+    let y = FontHeight * scaleFactor;
+    let renderedChars = [];
+
+    function render() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#000";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        renderedChars.forEach(char => {
+            const { imgData, posX, posY } = char;
+            ctx.putImageData(imgData, posX, posY);
+        });
+    }
+    
+    glyphs.forEach(glyph => {
+        const charImageData = getCharImageData(bitmaps, glyph);
+        // console.log('Glyph:', glyph);
+
+        if (glyph.width > 0 && glyph.height > 0) {
+            const imgData = ctx.createImageData(glyph.width * scaleFactor, glyph.height * scaleFactor);
+            const scaledCharImageData = scaleImageData(charImageData, glyph.width, glyph.height, scaleFactor);
+            imgData.data.set(scaledCharImageData);
+            
+            // Check if y exceeds the canvas height
+            if (y + lineHeight > canvas.height) {
+                // Increase canvas height by a fixed amount (e.g., 200 pixels) or based on line height
+                canvas.height += lineHeight + 10 * scaleFactor; // Add some padding
+                render(); // Render everything again
+            }
+            
+            ctx.putImageData(imgData, x, y - glyph.height * scaleFactor);
+            renderedChars.push({ imgData, posX: x, posY: y - glyph.height * scaleFactor });
+
+            x += (glyph.xAdvance * scaleFactor + 10);
+
+            if (x > canvas.width - (glyph.width * scaleFactor)) {
+                x = 10;
+                y += lineHeight + FontHeight * scaleFactor;
+            }
+        } else {
+            console.error('Invalid glyph data:', glyph);
+        }
+    });
+    // Adjust canvas height to fit all rendered characters
+    const lastChar = renderedChars[renderedChars.length - 1];
+    const requiredHeight = lastChar ? lastChar.posY + lastChar.imgData.height : canvas.height;
+    if (canvas.height !== requiredHeight) {
+        canvas.height = requiredHeight;
+        render(); // Render everything again with the adjusted canvas height
+    }
+}
+
+function parseFontHeader(data) {
+	/* 
+		//Adafruit GFX Font Glyphs structure
+		typedef struct {
+		  uint16_t bitmapOffset; ///< Pointer into GFXfont->bitmap
+		  uint8_t width;         ///< Bitmap dimensions in pixels
+		  uint8_t height;        ///< Bitmap dimensions in pixels
+		  uint8_t xAdvance;      ///< Distance to advance cursor (x axis)
+		  int8_t xOffset;        ///< X dist from cursor pos to UL corner
+		  int8_t yOffset;        ///< Y dist from cursor pos to UL corner
+		} GFXglyph;
+	*/
+    const bitmaps = [];
+    const glyphs = [];
+    const bitmapRegex = /0x([0-9A-Fa-f]{2})/g;
+    const glyphRegex = /{ +(\d+), +(\d+), +(\d+), +(\d+), +(\d+), +(\d+) }/g;
+
+    let match;
+    while ((match = bitmapRegex.exec(data)) !== null) {
+        tes = bitmaps.push(parseInt(match[1], 16));
+    }
+
+    const regex = /,\s*(\d+)\s*\};/;
+    const FontHeightMatch = data.match(regex);
+    const FontHeight = parseInt(FontHeightMatch[1], 10);
+
+    let currentBitmapOffset = 0;
+    let oldOffset = 0;
+    while ((match = glyphRegex.exec(data)) !== null) {
+        const [_, bitmapOffset, width, height, xAdvance, xOffset, yOffset] = match.map(Number);
+        if (width > 0 && height > 0) {
+            oldOffset = currentBitmapOffset;
+            if (oldOffset != bitmapOffset) {
+                currentBitmapOffset += 1;
+            }
+            glyphs.push({ bitmapOffset, width, height, xAdvance, xOffset, yOffset, glyphOffset: currentBitmapOffset });
+            currentBitmapOffset += Math.ceil((width * height) / 8);
+            // console.log('oldOffset:', oldOffset);
+            // console.log('currentBitmapOffset:', currentBitmapOffset);
+            // console.log('bitmapOffset:', bitmapOffset, '\n\n');
+        } else {
+            // console.log('w=0 h=0:\n', oldOffset);
+            glyphs.push({ bitmapOffset, width, height, xAdvance, xOffset, yOffset, glyphOffset: -1 });
+        }
+    }
+
+    return { bitmaps, glyphs, FontHeight };
+}
+
+function getCharImageData(bitmaps, glyph) {
+    const { width, height, glyphOffset } = glyph;
+    if (glyphOffset === -1) {
+        return new Uint8ClampedArray(width * height * 4);
+    }
+    const charData = new Uint8ClampedArray(width * height * 4);
+    let byteIndex = glyphOffset;
+    let bitIndex = 0;
+
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            const byte = bitmaps[byteIndex];
+            const bit = (byte >> (7 - bitIndex)) & 1;
+            const pixel = bit ? 255 : 0;
+            const index = (y * width + x) * 4;
+            charData[index] = pixel;
+            charData[index + 1] = pixel;
+            charData[index + 2] = pixel;
+            charData[index + 3] = 255;
+
+            bitIndex++;
+            if (bitIndex === 8) {
+                bitIndex = 0;
+                byteIndex++;
+            }
+        }
+    }
+
+    return charData;
+}
+
+function scaleImageData(data, width, height, scaleFactor) {
+    const scaledData = new Uint8ClampedArray(width * height * 4 * scaleFactor * scaleFactor);
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            const index = (y * width + x) * 4;
+            for (let dy = 0; dy < scaleFactor; dy++) {
+                for (let dx = 0; dx < scaleFactor; dx++) {
+                    const scaledIndex = ((y * scaleFactor + dy) * width * scaleFactor + (x * scaleFactor + dx)) * 4;
+                    scaledData[scaledIndex] = data[index];
+                    scaledData[scaledIndex + 1] = data[index + 1];
+                    scaledData[scaledIndex + 2] = data[index + 2];
+                    scaledData[scaledIndex + 3] = data[index + 3];
+                }
+            }
+        }
+    }
+    return scaledData;
+}
+
+   </script>
+</body>
+</html>
